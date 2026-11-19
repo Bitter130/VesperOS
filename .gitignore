@@ -1,0 +1,34 @@
+# Build output
+build/
+bin/
+out/
+dist/
+
+# Compiled object files & dependencies
+*.o
+*.obj
+*.d
+*.a
+*.lib
+
+# Executables & OS disk images
+*.efi
+*.EFI
+*.bin
+*.img
+*.iso
+
+# QEMU / Emulation temp files
+*.log
+OVMF_VARS.fd
+
+# IDE & Editor configs
+.vscode/
+.vs/
+.idea/
+*.suo
+*.user
+
+# System files
+Thumbs.db
+.DS_Store
