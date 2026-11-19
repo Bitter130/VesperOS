@@ -1,14 +1,25 @@
 #!/usr/bin/env bash
 set -e
 
+echo "=== Cleaning up any existing instances ==="
+pkill -f qemu-system-x86_64 2>/dev/null || true
+pkill -f websockify 2>/dev/null || true
+
 echo "=== Installing QEMU, OVMF, noVNC & LLVM/LLD ==="
 sudo apt-get update -y
-sudo apt-get install -y qemu-system-x86 ovmf novnc websockify clang lld llvm mtools dosfstools
+sudo apt-get install -y qemu-system-x86 ovmf novnc websockify clang lld llvm mtools dosfstools curl
 
 # Ensure lld-link symlink exists
 if ! command -v lld-link &>/dev/null; then
     if command -v lld &>/dev/null; then
         sudo ln -sf "$(which lld)" /usr/local/bin/lld-link
+    fi
+fi
+
+# Ensure /usr/share/novnc/index.html points to vnc.html so root URL works directly
+if [ -d "/usr/share/novnc" ]; then
+    if [ -f "/usr/share/novnc/vnc.html" ] && [ ! -f "/usr/share/novnc/index.html" ]; then
+        sudo ln -sf /usr/share/novnc/vnc.html /usr/share/novnc/index.html
     fi
 fi
 
@@ -65,10 +76,16 @@ qemu-system-x86_64 \
 sleep 2
 
 echo ""
-echo "======================================================================"
-echo ">>> In Codespaces, open the PORTS tab or click 'Open in Browser' <<<"
-echo ">>> Forwarded Port: 6080                                           <<<"
-echo "======================================================================"
+echo "=========================================================================="
+echo "  VesperOS is RUNNING! "
+echo "  Web interface is listening on port 6080."
+echo "=========================================================================="
 echo ""
 
-websockify --web /usr/share/novnc 6080 localhost:5900
+# Find web directory for noVNC
+NOVNC_DIR="/usr/share/novnc"
+if [ ! -d "$NOVNC_DIR" ]; then
+    NOVNC_DIR="/usr/share/novnc-core"
+fi
+
+websockify --web "$NOVNC_DIR" 6080 localhost:5900
