@@ -4,15 +4,22 @@
 
 namespace Vesper::Drivers {
 
+enum class PointerType {
+    None,
+    SimpleRelative,
+    AbsoluteTablet
+};
+
 struct MouseState {
-    INT32   X = 0;
-    INT32   Y = 0;
-    INT32   DeltaX = 0;
-    INT32   DeltaY = 0;
-    INT32   DeltaZ = 0;
-    bool    LeftButton = false;
-    bool    RightButton = false;
-    bool    Present = false;
+    INT32       X = 0;
+    INT32       Y = 0;
+    INT32       DeltaX = 0;
+    INT32       DeltaY = 0;
+    INT32       DeltaZ = 0;
+    bool        LeftButton = false;
+    bool        RightButton = false;
+    bool        Present = false;
+    PointerType Type = PointerType::None;
 };
 
 class Mouse {
@@ -28,7 +35,8 @@ public:
 private:
     Mouse() = default;
 
-    EFI_SIMPLE_POINTER_PROTOCOL* m_Pointer = nullptr;
+    EFI_SIMPLE_POINTER_PROTOCOL*   m_SimplePointer = nullptr;
+    EFI_ABSOLUTE_POINTER_PROTOCOL* m_AbsolutePointer = nullptr;
     MouseState m_State;
     UINT32     m_ScreenWidth = 800;
     UINT32     m_ScreenHeight = 600;

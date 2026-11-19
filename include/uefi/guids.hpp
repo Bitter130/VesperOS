@@ -15,6 +15,12 @@ inline EFI_GUID EFI_SIMPLE_POINTER_PROTOCOL_GUID = {
     {0x9a, 0x4f, 0x00, 0x90, 0x27, 0x3f, 0xc1, 0x4d}
 };
 
+// Absolute Pointer Protocol GUID: 8d59d32b-c655-4ae9-9b15-f25904992a43
+inline EFI_GUID EFI_ABSOLUTE_POINTER_PROTOCOL_GUID = {
+    0x8d59d32b, 0xc655, 0x4ae9,
+    {0x9b, 0x15, 0xf2, 0x59, 0x04, 0x99, 0x2a, 0x43}
+};
+
 // EDID Active Protocol GUID: bd8c1056-9f36-44ec-92a8-a6337f817986
 inline EFI_GUID EFI_EDID_ACTIVE_PROTOCOL_GUID = {
     0xbd8c1056, 0x9f36, 0x44ec,

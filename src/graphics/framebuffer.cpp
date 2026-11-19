@@ -14,40 +14,59 @@ void Framebuffer::Init(UINT32* base, UINT32 width, UINT32 height, UINT32 pitch, 
     m_Height = height;
     m_Pitch = pitch;
     m_Format = format;
+    m_HasCursorBacking = false;
+}
+
+static inline UINT32 PackColor(Color c) {
+    return (c.A << 24) | (c.R << 16) | (c.G << 8) | c.B;
 }
 
 void Framebuffer::Clear(Color color) {
     if (!m_Base) return;
-    UINT32 c = (color.A << 24) | (color.R << 16) | (color.G << 8) | color.B;
+    UINT32 c = PackColor(color);
     for (UINT32 y = 0; y < m_Height; ++y) {
         UINT32* row = m_Base + (y * m_Pitch);
         for (UINT32 x = 0; x < m_Width; ++x) {
             row[x] = c;
         }
     }
+    m_HasCursorBacking = false;
 }
 
 void Framebuffer::PutPixel(UINT32 x, UINT32 y, Color color) {
     if (!m_Base || x >= m_Width || y >= m_Height) return;
-    UINT32 c = (color.A << 24) | (color.R << 16) | (color.G << 8) | color.B;
-    m_Base[y * m_Pitch + x] = c;
+    m_Base[y * m_Pitch + x] = PackColor(color);
+}
+
+void Framebuffer::DrawHLine(UINT32 x, UINT32 y, UINT32 w, Color color) {
+    if (!m_Base || y >= m_Height) return;
+    UINT32 endX = (x + w < m_Width) ? (x + w) : m_Width;
+    UINT32 c = PackColor(color);
+    UINT32* row = m_Base + (y * m_Pitch);
+    for (UINT32 px = x; px < endX; ++px) {
+        row[px] = c;
+    }
+}
+
+void Framebuffer::DrawVLine(UINT32 x, UINT32 y, UINT32 h, Color color) {
+    if (!m_Base || x >= m_Width) return;
+    UINT32 endY = (y + h < m_Height) ? (y + h) : m_Height;
+    UINT32 c = PackColor(color);
+    for (UINT32 py = y; py < endY; ++py) {
+        m_Base[py * m_Pitch + x] = c;
+    }
 }
 
 void Framebuffer::DrawRect(UINT32 x, UINT32 y, UINT32 w, UINT32 h, Color color) {
-    if (!m_Base) return;
-    for (UINT32 i = 0; i < w; ++i) {
-        PutPixel(x + i, y, color);
-        PutPixel(x + i, y + h - 1, color);
-    }
-    for (UINT32 j = 0; j < h; ++j) {
-        PutPixel(x, y + j, color);
-        PutPixel(x + w - 1, y + j, color);
-    }
+    DrawHLine(x, y, w, color);
+    DrawHLine(x, y + h - 1, w, color);
+    DrawVLine(x, y, h, color);
+    DrawVLine(x + w - 1, y, h, color);
 }
 
 void Framebuffer::FillRect(UINT32 x, UINT32 y, UINT32 w, UINT32 h, Color color) {
     if (!m_Base) return;
-    UINT32 c = (color.A << 24) | (color.R << 16) | (color.G << 8) | color.B;
+    UINT32 c = PackColor(color);
     UINT32 endX = (x + w < m_Width) ? (x + w) : m_Width;
     UINT32 endY = (y + h < m_Height) ? (y + h) : m_Height;
 
@@ -64,8 +83,8 @@ void Framebuffer::DrawChar(UINT32 x, UINT32 y, char c, Color fg, Color bg, bool 
     if (c < 32 || c > 126) c = '?';
 
     const uint8_t* glyph = Font8x16[c - 32];
-    UINT32 fgColor = (fg.A << 24) | (fg.R << 16) | (fg.G << 8) | fg.B;
-    UINT32 bgColor = (bg.A << 24) | (bg.R << 16) | (bg.G << 8) | bg.B;
+    UINT32 fgColor = PackColor(fg);
+    UINT32 bgColor = PackColor(bg);
 
     for (UINT32 row = 0; row < 16; ++row) {
         UINT32 py = y + row;
@@ -107,9 +126,54 @@ void Framebuffer::DrawString(UINT32 x, UINT32 y, const char* str, Color fg, Colo
     }
 }
 
-void Framebuffer::DrawCursor(UINT32 x, UINT32 y) {
-    // 12x18 Arrow mouse cursor bitmap
-    static const uint16_t CursorBitmap[18] = {
+void Framebuffer::MoveCursor(INT32 newX, INT32 newY) {
+    if (!m_Base) return;
+
+    // 1. Restore previous background under cursor
+    if (m_HasCursorBacking) {
+        for (UINT32 r = 0; r < m_CursorBackingH; ++r) {
+            UINT32 py = (UINT32)m_CursorBackingY + r;
+            if (py >= m_Height) break;
+            UINT32* rowPtr = m_Base + (py * m_Pitch);
+            for (UINT32 c = 0; c < m_CursorBackingW; ++c) {
+                UINT32 px = (UINT32)m_CursorBackingX + c;
+                if (px >= m_Width) break;
+                rowPtr[px] = m_CursorBacking[r * 16 + c];
+            }
+        }
+        m_HasCursorBacking = false;
+    }
+
+    // Clamp coordinates
+    if (newX < 0) newX = 0;
+    if (newX >= (INT32)m_Width) newX = (INT32)m_Width - 1;
+    if (newY < 0) newY = 0;
+    if (newY >= (INT32)m_Height) newY = (INT32)m_Height - 1;
+
+    UINT32 cx = (UINT32)newX;
+    UINT32 cy = (UINT32)newY;
+    UINT32 w = 12;
+    UINT32 h = 18;
+
+    if (cx + w > m_Width)  w = m_Width - cx;
+    if (cy + h > m_Height) h = m_Height - cy;
+
+    // 2. Save background into backing buffer
+    m_CursorBackingX = (INT32)cx;
+    m_CursorBackingY = (INT32)cy;
+    m_CursorBackingW = w;
+    m_CursorBackingH = h;
+
+    for (UINT32 r = 0; r < h; ++r) {
+        UINT32* rowPtr = m_Base + ((cy + r) * m_Pitch);
+        for (UINT32 c = 0; c < w; ++c) {
+            m_CursorBacking[r * 16 + c] = rowPtr[cx + c];
+        }
+    }
+    m_HasCursorBacking = true;
+
+    // 3. Draw sharp, high-precision arrow cursor (white body, black outline)
+    static const uint16_t CursorOutline[18] = {
         0b100000000000,
         0b110000000000,
         0b111000000000,
@@ -130,20 +194,41 @@ void Framebuffer::DrawCursor(UINT32 x, UINT32 y) {
         0b000000000000
     };
 
-    Color white = Color::White();
-    Color black = Color::Black();
+    static const uint16_t CursorInside[18] = {
+        0b000000000000,
+        0b010000000000,
+        0b011000000000,
+        0b011100000000,
+        0b011110000000,
+        0b011111000000,
+        0b011111100000,
+        0b011111110000,
+        0b011111100000,
+        0b011110000000,
+        0b011011000000,
+        0b010001100000,
+        0b000000110000,
+        0b000000011000,
+        0b000000001000,
+        0b000000000000,
+        0b000000000000,
+        0b000000000000
+    };
 
-    for (UINT32 row = 0; row < 18; ++row) {
-        UINT32 py = y + row;
-        if (py >= m_Height) break;
-        uint16_t line = CursorBitmap[row];
+    UINT32 white = 0xFFFFFFFF;
+    UINT32 black = 0xFF000000;
 
-        for (UINT32 col = 0; col < 12; ++col) {
-            UINT32 px = x + col;
-            if (px >= m_Width) break;
+    for (UINT32 r = 0; r < h; ++r) {
+        uint16_t outline = CursorOutline[r];
+        uint16_t inside  = CursorInside[r];
+        UINT32* rowPtr = m_Base + ((cy + r) * m_Pitch);
 
-            if (line & (1 << (11 - col))) {
-                PutPixel(px, py, (col == 0 || row == 0 || (line & (1 << (12 - col))) == 0) ? black : white);
+        for (UINT32 c = 0; c < w; ++c) {
+            uint16_t mask = (1 << (11 - c));
+            if (inside & mask) {
+                rowPtr[cx + c] = white;
+            } else if (outline & mask) {
+                rowPtr[cx + c] = black;
             }
         }
     }
