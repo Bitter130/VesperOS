@@ -31,16 +31,19 @@ jobs:
             --target=x86_64-unknown-windows \
             -nostdlib \
             -ffreestanding \
+            -fshort-wchar \
             -fno-stack-protector \
             -fno-exceptions \
             -fno-rtti \
+            -fno-threadsafe-statics \
             -mno-red-zone \
             -std=c++20 \
             -Wall -Wextra -O2 \
             -Iinclude \
-            -fuse-ld=lld-link \
+            -fuse-ld=lld \
             -Wl,-subsystem:efi_application \
             -Wl,-entry:efi_main \
+            -Wl,-nodefaultlib \
             src/main.cpp \
             src/graphics/font.cpp \
             src/graphics/framebuffer.cpp \
@@ -48,6 +51,7 @@ jobs:
             src/drivers/keyboard.cpp \
             src/drivers/mouse.cpp \
             src/system/info.cpp \
+            src/system/runtime.cpp \
             -o bin/BOOTX64.EFI
 
           ls -lh bin/BOOTX64.EFI

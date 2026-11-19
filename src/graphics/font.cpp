@@ -3,7 +3,7 @@
 namespace Vesper::Graphics {
 
 // 8x16 monospace bitmap glyphs for printable ASCII 32 (' ') to 126 ('~')
-const uint8_t Font8x16[96][16] = {
+const uint8_t Font8x16[95][16] = {
     // 32: ' '
     {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
     // 33: '!'
@@ -193,7 +193,7 @@ const uint8_t Font8x16[96][16] = {
     // 125: '}'
     {0,0x70,0x18,0x18,0x18,0x0E,0x18,0x18,0x18,0x70,0,0,0,0,0,0},
     // 126: '~'
-    {0,0x76,0xDC,0,0,0,0,0,0,0,0,0,0,0,0,0,0}
+    {0,0x76,0xDC,0,0,0,0,0,0,0,0,0,0,0,0,0}
 };
 
 } // namespace Vesper::Graphics
