@@ -6,15 +6,9 @@ pkill -f qemu-system-x86_64 2>/dev/null || true
 pkill -f websockify 2>/dev/null || true
 rm -f /tmp/vnc.sock
 
-echo "=== Installing Packages ==="
-sudo apt-get update -y
-sudo apt-get install -y qemu-system-x86 ovmf novnc websockify curl
-
-# Make sure index.html exists in novnc directory so root URL / loads immediately
+echo "=== Ensuring index.html for noVNC ==="
 if [ -d "/usr/share/novnc" ]; then
-    if [ -f "/usr/share/novnc/vnc.html" ]; then
-        sudo cp -f /usr/share/novnc/vnc.html /usr/share/novnc/index.html
-    fi
+    sudo ln -sf /usr/share/novnc/vnc.html /usr/share/novnc/index.html 2>/dev/null || true
 fi
 
 # Ensure bin directory exists
@@ -41,7 +35,6 @@ if [ -z "$OVMF_PATH" ]; then
 fi
 
 echo "=== Starting QEMU with UEFI (Unix Socket) ==="
-# Using Unix socket completely prevents VS Code from opening the broken 5900 port!
 qemu-system-x86_64 \
     -bios "$OVMF_PATH" \
     -m 512M \
@@ -59,7 +52,7 @@ done
 echo ""
 echo "=========================================================================="
 echo "  VesperOS is RUNNING! "
-echo "  Opening Web Interface on Port 6080..."
+echo "  Web interface is listening on port 6080."
 echo "=========================================================================="
 echo ""
 
