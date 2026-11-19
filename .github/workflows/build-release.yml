@@ -1,0 +1,88 @@
+name: Build & Release VesperOS
+
+on:
+  push:
+    branches: [ "main" ]
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Compile UEFI Kernel
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install LLVM, Clang, LLD & Disk Image Tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang lld llvm mtools dosfstools
+
+      - name: Compile Freestanding C++ to UEFI (.EFI)
+        run: |
+          mkdir -p bin
+          clang++ \
+            --target=x86_64-unknown-windows \
+            -nostdlib \
+            -ffreestanding \
+            -fno-stack-protector \
+            -fno-exceptions \
+            -fno-rtti \
+            -mno-red-zone \
+            -std=c++20 \
+            -Wall -Wextra -O2 \
+            -Iinclude \
+            -fuse-ld=lld-link \
+            -Wl,-subsystem:efi_application \
+            -Wl,-entry:efi_main \
+            src/main.cpp \
+            src/graphics/font.cpp \
+            src/graphics/framebuffer.cpp \
+            src/drivers/display.cpp \
+            src/drivers/keyboard.cpp \
+            src/drivers/mouse.cpp \
+            src/system/info.cpp \
+            -o bin/BOOTX64.EFI
+
+          ls -lh bin/BOOTX64.EFI
+
+      - name: Create Bootable USB Disk Image (FAT32)
+        run: |
+          # Create a 64MB zeroed image
+          dd if=/dev/zero of=bin/vesper-os.img bs=1M count=64
+
+          # Format with FAT32
+          mkfs.vfat -F 32 bin/vesper-os.img
+
+          # Create standard EFI directory layout and copy binary
+          mmd -i bin/vesper-os.img ::/EFI
+          mmd -i bin/vesper-os.img ::/EFI/BOOT
+          mcopy -i bin/vesper-os.img bin/BOOTX64.EFI ::/EFI/BOOT/BOOTX64.EFI
+
+          ls -lh bin/vesper-os.img
+
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: VesperOS-UEFI-Build
+          path: |
+            bin/BOOTX64.EFI
+            bin/vesper-os.img
+          if-no-files-found: error
+
+      - name: Publish GitHub Release (on Tag)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            bin/BOOTX64.EFI
+            bin/vesper-os.img
+          generate_release_notes: true
+          draft: false
+          prerelease: false
