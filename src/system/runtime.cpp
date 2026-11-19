@@ -50,6 +50,9 @@ int memcmp(const void* s1, const void* s2, size_t n) {
     return 0;
 }
 
+// Stack probe helper for Windows ABI
+void __chkstk() {}
+
 // C++ ABI Stubs for freestanding builds
 int __cxa_guard_acquire(uint64_t* guard) {
     return !*(uint8_t*)guard;

@@ -32,7 +32,7 @@ EFI_STATUS SystemInfo::Query(EFI_SYSTEM_TABLE* st) {
     m_Info.FirmwareRevision = st->FirmwareRevision;
 
     // 2. Query Memory Map to calculate total and usable RAM
-    UINT8 memoryBuffer[16384];
+    static UINT8 memoryBuffer[16384];
     UINTN mapSize = sizeof(memoryBuffer);
     UINTN mapKey = 0;
     UINTN descSize = 0;
