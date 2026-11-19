@@ -1,4 +1,4 @@
-# VesperOS 🌌
+# VesperOS
 
 A bare-metal x86_64 UEFI Micro OS written in C++.
 
