@@ -68,4 +68,14 @@ void __cxa_pure_virtual() {
     while (1) {}
 }
 
+void _purecall() {
+    while (1) {}
+}
+
 } // extern "C"
+
+// C++ delete stubs for virtual destructors
+void operator delete(void*) noexcept {}
+void operator delete(void*, size_t) noexcept {}
+void operator delete[](void*) noexcept {}
+void operator delete[](void*, size_t) noexcept {}
