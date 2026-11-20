@@ -112,13 +112,14 @@ EFI_STATUS Display::Init(EFI_BOOT_SERVICES* bs) {
         }
     }
 
-    // 5. Initialize Framebuffer
+    // 5. Initialize Framebuffer with double buffering
     Graphics::Framebuffer::Instance().Init(
         (UINT32*)m_Info.FrameBufferBase,
         m_Info.Width,
         m_Info.Height,
         m_Info.PixelsPerScanLine,
-        m_GOP->Mode->Info->PixelFormat
+        m_GOP->Mode->Info->PixelFormat,
+        bs
     );
 
     return EFI_SUCCESS;

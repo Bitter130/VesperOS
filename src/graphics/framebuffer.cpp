@@ -1,6 +1,8 @@
 #include "graphics/framebuffer.hpp"
 #include "graphics/font.hpp"
 
+extern "C" void* memcpy(void* dest, const void* src, size_t count);
+
 namespace Vesper::Graphics {
 
 Framebuffer& Framebuffer::Instance() {
@@ -8,13 +10,33 @@ Framebuffer& Framebuffer::Instance() {
     return s_Instance;
 }
 
-void Framebuffer::Init(UINT32* base, UINT32 width, UINT32 height, UINT32 pitch, EFI_GRAPHICS_PIXEL_FORMAT format) {
-    m_Base = base;
+void Framebuffer::Init(UINT32* base, UINT32 width, UINT32 height, UINT32 pitch, EFI_GRAPHICS_PIXEL_FORMAT format, EFI_BOOT_SERVICES* bs) {
+    m_FrontBuffer = base;
     m_Width = width;
     m_Height = height;
     m_Pitch = pitch;
     m_Format = format;
-    m_HasCursorBacking = false;
+    m_BackBuffer = nullptr;
+    m_HasDoubleBuffer = false;
+
+    // Allocate offscreen backbuffer in RAM for flicker-free 60fps rendering
+    if (bs && bs->AllocatePages) {
+        UINTN bufferBytes = (UINTN)m_Pitch * m_Height * sizeof(UINT32);
+        UINTN pagesNeeded = (bufferBytes + 4095) / 4096;
+        UINT64 allocatedAddress = 0;
+
+        EFI_STATUS status = bs->AllocatePages(AllocateAnyPages, EfiLoaderData, pagesNeeded, &allocatedAddress);
+        if (!EFI_ERROR(status) && allocatedAddress != 0) {
+            m_BackBuffer = (UINT32*)allocatedAddress;
+            m_HasDoubleBuffer = true;
+        }
+    }
+
+    // Fallback to frontbuffer if allocation failed
+    if (!m_BackBuffer) {
+        m_BackBuffer = m_FrontBuffer;
+        m_HasDoubleBuffer = false;
+    }
 }
 
 static inline UINT32 PackColor(Color c) {
@@ -22,38 +44,37 @@ static inline UINT32 PackColor(Color c) {
 }
 
 void Framebuffer::Clear(Color color) {
-    if (!m_Base) return;
+    if (!m_BackBuffer) return;
     UINT32 c = PackColor(color);
     for (UINT32 y = 0; y < m_Height; ++y) {
-        UINT32* row = m_Base + (y * m_Pitch);
+        UINT32* row = m_BackBuffer + (y * m_Pitch);
         for (UINT32 x = 0; x < m_Width; ++x) {
             row[x] = c;
         }
     }
-    m_HasCursorBacking = false;
 }
 
 void Framebuffer::PutPixel(UINT32 x, UINT32 y, Color color) {
-    if (!m_Base || x >= m_Width || y >= m_Height) return;
-    m_Base[y * m_Pitch + x] = PackColor(color);
+    if (!m_BackBuffer || x >= m_Width || y >= m_Height) return;
+    m_BackBuffer[y * m_Pitch + x] = PackColor(color);
 }
 
 void Framebuffer::DrawHLine(UINT32 x, UINT32 y, UINT32 w, Color color) {
-    if (!m_Base || y >= m_Height) return;
+    if (!m_BackBuffer || y >= m_Height) return;
     UINT32 endX = (x + w < m_Width) ? (x + w) : m_Width;
     UINT32 c = PackColor(color);
-    UINT32* row = m_Base + (y * m_Pitch);
+    UINT32* row = m_BackBuffer + (y * m_Pitch);
     for (UINT32 px = x; px < endX; ++px) {
         row[px] = c;
     }
 }
 
 void Framebuffer::DrawVLine(UINT32 x, UINT32 y, UINT32 h, Color color) {
-    if (!m_Base || x >= m_Width) return;
+    if (!m_BackBuffer || x >= m_Width) return;
     UINT32 endY = (y + h < m_Height) ? (y + h) : m_Height;
     UINT32 c = PackColor(color);
     for (UINT32 py = y; py < endY; ++py) {
-        m_Base[py * m_Pitch + x] = c;
+        m_BackBuffer[py * m_Pitch + x] = c;
     }
 }
 
@@ -65,13 +86,13 @@ void Framebuffer::DrawRect(UINT32 x, UINT32 y, UINT32 w, UINT32 h, Color color) 
 }
 
 void Framebuffer::FillRect(UINT32 x, UINT32 y, UINT32 w, UINT32 h, Color color) {
-    if (!m_Base) return;
+    if (!m_BackBuffer) return;
     UINT32 c = PackColor(color);
     UINT32 endX = (x + w < m_Width) ? (x + w) : m_Width;
     UINT32 endY = (y + h < m_Height) ? (y + h) : m_Height;
 
     for (UINT32 py = y; py < endY; ++py) {
-        UINT32* row = m_Base + (py * m_Pitch);
+        UINT32* row = m_BackBuffer + (py * m_Pitch);
         for (UINT32 px = x; px < endX; ++px) {
             row[px] = c;
         }
@@ -79,7 +100,7 @@ void Framebuffer::FillRect(UINT32 x, UINT32 y, UINT32 w, UINT32 h, Color color) 
 }
 
 void Framebuffer::DrawChar(UINT32 x, UINT32 y, char c, Color fg, Color bg, bool transparentBg) {
-    if (!m_Base) return;
+    if (!m_BackBuffer) return;
     if (c < 32 || c > 126) c = '?';
 
     const uint8_t* glyph = Font8x16[c - 32];
@@ -90,7 +111,7 @@ void Framebuffer::DrawChar(UINT32 x, UINT32 y, char c, Color fg, Color bg, bool 
         UINT32 py = y + row;
         if (py >= m_Height) break;
         uint8_t line = glyph[row];
-        UINT32* rowPtr = m_Base + (py * m_Pitch);
+        UINT32* rowPtr = m_BackBuffer + (py * m_Pitch);
 
         for (UINT32 col = 0; col < 8; ++col) {
             UINT32 px = x + col;
@@ -126,53 +147,22 @@ void Framebuffer::DrawString(UINT32 x, UINT32 y, const char* str, Color fg, Colo
     }
 }
 
-void Framebuffer::MoveCursor(INT32 newX, INT32 newY) {
-    if (!m_Base) return;
+void Framebuffer::DrawCursor(INT32 x, INT32 y) {
+    if (!m_BackBuffer) return;
 
-    // 1. Restore previous background under cursor
-    if (m_HasCursorBacking) {
-        for (UINT32 r = 0; r < m_CursorBackingH; ++r) {
-            UINT32 py = (UINT32)m_CursorBackingY + r;
-            if (py >= m_Height) break;
-            UINT32* rowPtr = m_Base + (py * m_Pitch);
-            for (UINT32 c = 0; c < m_CursorBackingW; ++c) {
-                UINT32 px = (UINT32)m_CursorBackingX + c;
-                if (px >= m_Width) break;
-                rowPtr[px] = m_CursorBacking[r * 16 + c];
-            }
-        }
-        m_HasCursorBacking = false;
-    }
+    if (x < 0) x = 0;
+    if (x >= (INT32)m_Width) x = (INT32)m_Width - 1;
+    if (y < 0) y = 0;
+    if (y >= (INT32)m_Height) y = (INT32)m_Height - 1;
 
-    // Clamp coordinates
-    if (newX < 0) newX = 0;
-    if (newX >= (INT32)m_Width) newX = (INT32)m_Width - 1;
-    if (newY < 0) newY = 0;
-    if (newY >= (INT32)m_Height) newY = (INT32)m_Height - 1;
-
-    UINT32 cx = (UINT32)newX;
-    UINT32 cy = (UINT32)newY;
+    UINT32 cx = (UINT32)x;
+    UINT32 cy = (UINT32)y;
     UINT32 w = 12;
     UINT32 h = 18;
 
     if (cx + w > m_Width)  w = m_Width - cx;
     if (cy + h > m_Height) h = m_Height - cy;
 
-    // 2. Save background into backing buffer
-    m_CursorBackingX = (INT32)cx;
-    m_CursorBackingY = (INT32)cy;
-    m_CursorBackingW = w;
-    m_CursorBackingH = h;
-
-    for (UINT32 r = 0; r < h; ++r) {
-        UINT32* rowPtr = m_Base + ((cy + r) * m_Pitch);
-        for (UINT32 c = 0; c < w; ++c) {
-            m_CursorBacking[r * 16 + c] = rowPtr[cx + c];
-        }
-    }
-    m_HasCursorBacking = true;
-
-    // 3. Draw sharp, high-precision arrow cursor (white body, black outline)
     static const uint16_t CursorOutline[18] = {
         0b100000000000,
         0b110000000000,
@@ -221,7 +211,7 @@ void Framebuffer::MoveCursor(INT32 newX, INT32 newY) {
     for (UINT32 r = 0; r < h; ++r) {
         uint16_t outline = CursorOutline[r];
         uint16_t inside  = CursorInside[r];
-        UINT32* rowPtr = m_Base + ((cy + r) * m_Pitch);
+        UINT32* rowPtr = m_BackBuffer + ((cy + r) * m_Pitch);
 
         for (UINT32 c = 0; c < w; ++c) {
             uint16_t mask = (1 << (11 - c));
@@ -231,6 +221,13 @@ void Framebuffer::MoveCursor(INT32 newX, INT32 newY) {
                 rowPtr[cx + c] = black;
             }
         }
+    }
+}
+
+void Framebuffer::SwapBuffers() {
+    if (m_HasDoubleBuffer && m_FrontBuffer && m_BackBuffer && m_FrontBuffer != m_BackBuffer) {
+        UINTN bytes = (UINTN)m_Pitch * m_Height * sizeof(UINT32);
+        memcpy(m_FrontBuffer, m_BackBuffer, bytes);
     }
 }
 
