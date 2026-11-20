@@ -47,10 +47,10 @@ if exist "%QEMU_DIR%share\edk2-x86_64-code.fd" (
 
 if "%OVMF%"=="" (
     echo [INFO] Running QEMU with default bios...
-    qemu-system-x86_64 -m 512M -device usb-ehci -device usb-tablet -device usb-kbd -drive file=%IMG%,format=raw
+    qemu-system-x86_64 -m 512M -device qemu-xhci -device usb-tablet -device usb-mouse -device usb-kbd -drive file=%IMG%,format=raw
 ) else (
     echo [INFO] Booting with UEFI firmware: %OVMF%
-    qemu-system-x86_64 -bios "%OVMF%" -m 512M -device usb-ehci -device usb-tablet -device usb-kbd -drive file=%IMG%,format=raw
+    qemu-system-x86_64 -bios "%OVMF%" -m 512M -device qemu-xhci -device usb-tablet -device usb-mouse -device usb-kbd -drive file=%IMG%,format=raw
 )
 
 endlocal

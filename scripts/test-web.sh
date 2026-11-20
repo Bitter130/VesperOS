@@ -64,8 +64,9 @@ echo "=== Starting QEMU with UEFI, USB Tablet & Keyboard ==="
 qemu-system-x86_64 \
     -bios "$OVMF_PATH" \
     -m 512M \
-    -device usb-ehci \
+    -device qemu-xhci \
     -device usb-tablet \
+    -device usb-mouse \
     -device usb-kbd \
     -drive file=bin/vesper-os.img,format=raw \
     -vnc unix:/tmp/vnc.sock &

@@ -42,8 +42,14 @@ public:
 private:
     Mouse() = default;
 
-    EFI_SIMPLE_POINTER_PROTOCOL*   m_SimplePointer = nullptr;
-    EFI_ABSOLUTE_POINTER_PROTOCOL* m_AbsolutePointer = nullptr;
+    static constexpr int MAX_POINTERS = 4;
+
+    EFI_ABSOLUTE_POINTER_PROTOCOL* m_AbsolutePointers[MAX_POINTERS] = {nullptr};
+    int                            m_AbsCount = 0;
+
+    EFI_SIMPLE_POINTER_PROTOCOL*   m_SimplePointers[MAX_POINTERS] = {nullptr};
+    int                            m_SimCount = 0;
+
     MouseState m_State;
     UINT32     m_ScreenWidth = 800;
     UINT32     m_ScreenHeight = 600;
