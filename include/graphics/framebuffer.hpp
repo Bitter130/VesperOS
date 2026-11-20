@@ -33,6 +33,7 @@ public:
     static Framebuffer& Instance();
 
     void Init(UINT32* base, UINT32 width, UINT32 height, UINT32 pitch, EFI_GRAPHICS_PIXEL_FORMAT format, EFI_BOOT_SERVICES* bs);
+    void Resize(UINT32* base, UINT32 width, UINT32 height, UINT32 pitch, EFI_BOOT_SERVICES* bs);
 
     UINT32 GetWidth() const  { return m_Width; }
     UINT32 GetHeight() const { return m_Height; }
@@ -58,6 +59,7 @@ private:
 
     UINT32* m_FrontBuffer = nullptr;
     UINT32* m_BackBuffer  = nullptr;
+    UINTN   m_AllocatedPages = 0;
     UINT32  m_Width = 0;
     UINT32  m_Height = 0;
     UINT32  m_Pitch = 0;

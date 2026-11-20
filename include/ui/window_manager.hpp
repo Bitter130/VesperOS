@@ -17,6 +17,8 @@ public:
     void FocusWindow(Window* win);
     Window* GetFocusedWindow() const { return m_FocusedWindow; }
 
+    void OnScreenResize(UINT32 newWidth, UINT32 newHeight);
+
     void HandleMouse(const Drivers::MouseState& mouse);
     void HandleKey(const Drivers::KeyEvent& key);
 

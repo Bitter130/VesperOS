@@ -15,6 +15,8 @@ struct DisplayInfo {
     bool   EdidFound = false;
 };
 
+typedef void (*ScreenResizeCallback)(UINT32 newWidth, UINT32 newHeight);
+
 class Display {
 public:
     static Display& Instance();
@@ -23,13 +25,26 @@ public:
 
     const DisplayInfo& GetInfo() const { return m_Info; }
 
+    // Dynamic resolution controls
+    bool CheckResolutionChange();
+    bool SetMode(UINT32 modeIndex);
+    bool SetResolution(UINT32 width, UINT32 height);
+
+    UINT32 GetModeCount() const;
+    bool QueryMode(UINT32 modeIndex, UINT32& outW, UINT32& outH);
+
+    void SetResizeCallback(ScreenResizeCallback cb) { m_ResizeCallback = cb; }
+
 private:
     Display() = default;
 
     void ParseEDID(const UINT8* edid, UINT32 size);
+    void UpdateDisplayMetrics();
 
     EFI_GRAPHICS_OUTPUT_PROTOCOL* m_GOP = nullptr;
-    DisplayInfo m_Info;
+    EFI_BOOT_SERVICES*            m_BootServices = nullptr;
+    DisplayInfo                   m_Info;
+    ScreenResizeCallback          m_ResizeCallback = nullptr;
 };
 
 } // namespace Vesper::Drivers

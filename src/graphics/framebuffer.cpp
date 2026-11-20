@@ -18,6 +18,7 @@ void Framebuffer::Init(UINT32* base, UINT32 width, UINT32 height, UINT32 pitch, 
     m_Format = format;
     m_BackBuffer = nullptr;
     m_HasDoubleBuffer = false;
+    m_AllocatedPages = 0;
 
     // Allocate offscreen backbuffer in RAM for flicker-free 60fps rendering
     if (bs && bs->AllocatePages) {
@@ -28,11 +29,44 @@ void Framebuffer::Init(UINT32* base, UINT32 width, UINT32 height, UINT32 pitch, 
         EFI_STATUS status = bs->AllocatePages(AllocateAnyPages, EfiLoaderData, pagesNeeded, &allocatedAddress);
         if (!EFI_ERROR(status) && allocatedAddress != 0) {
             m_BackBuffer = (UINT32*)allocatedAddress;
+            m_AllocatedPages = pagesNeeded;
             m_HasDoubleBuffer = true;
         }
     }
 
-    // Fallback to frontbuffer if allocation failed
+    if (!m_BackBuffer) {
+        m_BackBuffer = m_FrontBuffer;
+        m_HasDoubleBuffer = false;
+    }
+}
+
+void Framebuffer::Resize(UINT32* base, UINT32 width, UINT32 height, UINT32 pitch, EFI_BOOT_SERVICES* bs) {
+    m_FrontBuffer = base;
+    m_Width = width;
+    m_Height = height;
+    m_Pitch = pitch;
+
+    UINTN bufferBytes = (UINTN)m_Pitch * m_Height * sizeof(UINT32);
+    UINTN pagesNeeded = (bufferBytes + 4095) / 4096;
+
+    // Reallocate backbuffer if larger than current allocation
+    if (pagesNeeded > m_AllocatedPages && bs && bs->AllocatePages) {
+        if (m_BackBuffer && m_HasDoubleBuffer && bs->FreePages) {
+            bs->FreePages((UINT64)m_BackBuffer, m_AllocatedPages);
+        }
+
+        UINT64 allocatedAddress = 0;
+        EFI_STATUS status = bs->AllocatePages(AllocateAnyPages, EfiLoaderData, pagesNeeded, &allocatedAddress);
+        if (!EFI_ERROR(status) && allocatedAddress != 0) {
+            m_BackBuffer = (UINT32*)allocatedAddress;
+            m_AllocatedPages = pagesNeeded;
+            m_HasDoubleBuffer = true;
+        } else {
+            m_BackBuffer = m_FrontBuffer;
+            m_HasDoubleBuffer = false;
+        }
+    }
+
     if (!m_BackBuffer) {
         m_BackBuffer = m_FrontBuffer;
         m_HasDoubleBuffer = false;

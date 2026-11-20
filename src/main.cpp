@@ -10,6 +10,11 @@
 
 using namespace Vesper;
 
+static void HandleScreenResize(UINT32 newW, UINT32 newH) {
+    UI::WindowManager::Instance().OnScreenResize(newW, newH);
+    Drivers::Mouse::Instance().SetScreenSize(newW, newH);
+}
+
 extern "C" EFI_STATUS EFIAPI efi_main(EFI_HANDLE imageHandle, EFI_SYSTEM_TABLE* systemTable) {
     (void)imageHandle;
 
@@ -36,11 +41,15 @@ extern "C" EFI_STATUS EFIAPI efi_main(EFI_HANDLE imageHandle, EFI_SYSTEM_TABLE* 
     auto& kbd = Drivers::Keyboard::Instance();
     auto& mouse = Drivers::Mouse::Instance();
     auto& wm = UI::WindowManager::Instance();
+    auto& disp = Drivers::Display::Instance();
 
-    // 4. Initialize Window Manager
+    // 4. Register Dynamic Screen Resize Listener
+    disp.SetResizeCallback(HandleScreenResize);
+
+    // 5. Initialize Window Manager
     wm.Init(dispInfo.Width, dispInfo.Height);
 
-    // 5. Create Default Windows (Terminal + System Monitor)
+    // 6. Create Default Windows (Terminal + System Monitor)
     UI::TerminalWindow terminal(1, 40, 50, 500, 310, systemTable);
     
     INT32 sysInfoX = (INT32)dispInfo.Width - 440;
@@ -53,8 +62,11 @@ extern "C" EFI_STATUS EFIAPI efi_main(EFI_HANDLE imageHandle, EFI_SYSTEM_TABLE* 
     uint64_t tickCounter = 0;
     uint64_t uptimeSeconds = 0;
 
-    // 6. 60 FPS Desktop Compositor Main Loop
+    // 7. 60 FPS Desktop Compositor Main Loop with Dynamic Screen Updating
     while (true) {
+        // Check for dynamic external GOP resolution changes (e.g. VM window resize)
+        disp.CheckResolutionChange();
+
         // Poll Keyboard Input
         Drivers::KeyEvent currentKey;
         if (kbd.PollKey(currentKey)) {
@@ -66,7 +78,7 @@ extern "C" EFI_STATUS EFIAPI efi_main(EFI_HANDLE imageHandle, EFI_SYSTEM_TABLE* 
         mouse.PollMouse(currentMouse);
         wm.HandleMouse(currentMouse);
 
-        // Track approximate uptime seconds (every ~200 iterations of 5ms = 1 sec)
+        // Track approximate uptime seconds (~200 ticks of 5ms = 1 sec)
         tickCounter++;
         if (tickCounter >= 200) {
             uptimeSeconds++;

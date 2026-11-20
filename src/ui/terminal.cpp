@@ -1,4 +1,5 @@
 #include "ui/terminal.hpp"
+#include "drivers/display.hpp"
 #include "utils/str.hpp"
 
 namespace Vesper::UI {
@@ -70,7 +71,80 @@ void TerminalWindow::ExecuteCommand(const char* cmd) {
     AppendLine(echoBuf);
 
     if (StrEquals(cmd, "help")) {
-        AppendLine("Commands: help, info, mem, clear, echo <text>, reboot");
+        AppendLine("Commands: help, info, mem, res, clear, echo <text>, reboot");
+    } else if (StrEquals(cmd, "res")) {
+        auto& disp = Drivers::Display::Instance();
+        const auto& info = disp.GetInfo();
+        char buf[MAX_LINE_LEN];
+
+        // Current resolution
+        char wStr[16], hStr[16];
+        Utils::UIntToString(info.Width, wStr, sizeof(wStr));
+        Utils::UIntToString(info.Height, hStr, sizeof(hStr));
+        int p = 0;
+        const char* pfx = "Active: ";
+        while (*pfx) buf[p++] = *pfx++;
+        for (int i = 0; wStr[i]; ++i) buf[p++] = wStr[i];
+        buf[p++] = 'x';
+        for (int i = 0; hStr[i]; ++i) buf[p++] = hStr[i];
+        buf[p] = '\0';
+        AppendLine(buf);
+
+        // List modes
+        UINT32 count = disp.GetModeCount();
+        if (count > 6) count = 6; // Limit display lines
+        for (UINT32 m = 0; m < count; ++m) {
+            UINT32 mw = 0, mh = 0;
+            if (disp.QueryMode(m, mw, mh)) {
+                char line[MAX_LINE_LEN] = "  [";
+                char mNum[8];
+                Utils::UIntToString(m, mNum, sizeof(mNum));
+                int lp = 3;
+                for (int i = 0; mNum[i]; ++i) line[lp++] = mNum[i];
+                line[lp++] = ']'; line[lp++] = ' ';
+                Utils::UIntToString(mw, wStr, sizeof(wStr));
+                Utils::UIntToString(mh, hStr, sizeof(hStr));
+                for (int i = 0; wStr[i]; ++i) line[lp++] = wStr[i];
+                line[lp++] = 'x';
+                for (int i = 0; hStr[i]; ++i) line[lp++] = hStr[i];
+                line[lp] = '\0';
+                AppendLine(line);
+            }
+        }
+        AppendLine("Usage: res <mode_idx> or res <w> <h>");
+    } else if (StrStartsWith(cmd, "res ")) {
+        const char* args = cmd + 4;
+        while (*args == ' ') args++;
+
+        auto& disp = Drivers::Display::Instance();
+
+        // Check if user passed two numbers (width height) or single number (mode index)
+        uint64_t val1 = 0;
+        while (*args >= '0' && *args <= '9') {
+            val1 = val1 * 10 + (*args - '0');
+            args++;
+        }
+        while (*args == ' ') args++;
+
+        if (*args >= '0' && *args <= '9') {
+            uint64_t val2 = 0;
+            while (*args >= '0' && *args <= '9') {
+                val2 = val2 * 10 + (*args - '0');
+                args++;
+            }
+            if (disp.SetResolution((UINT32)val1, (UINT32)val2)) {
+                AppendLine("Resolution changed successfully.");
+            } else {
+                AppendLine("Unsupported resolution.");
+            }
+        } else {
+            // Single value: mode index
+            if (disp.SetMode((UINT32)val1)) {
+                AppendLine("Mode switched successfully.");
+            } else {
+                AppendLine("Invalid mode index.");
+            }
+        }
     } else if (StrEquals(cmd, "clear")) {
         m_LineCount = 0;
     } else if (StrEquals(cmd, "info")) {

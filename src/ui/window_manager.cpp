@@ -81,6 +81,48 @@ void WindowManager::FocusWindow(Window* win) {
     win->SetMinimized(false);
 }
 
+void WindowManager::OnScreenResize(UINT32 newWidth, UINT32 newHeight) {
+    m_ScreenWidth  = newWidth;
+    m_ScreenHeight = newHeight;
+
+    UINT32 taskbarY = m_ScreenHeight - TASKBAR_HEIGHT;
+
+    // Adjust each window so it doesn't end up clipped offscreen
+    for (int i = 0; i < m_WindowCount; ++i) {
+        Window* win = m_Windows[i];
+        if (!win) continue;
+
+        INT32 wx = win->GetX();
+        INT32 wy = win->GetY();
+        UINT32 ww = win->GetWidth();
+        UINT32 wh = win->GetHeight();
+
+        // Clamp width if window is wider than screen
+        if (ww > m_ScreenWidth) {
+            win->SetSize(m_ScreenWidth - 20, wh);
+            ww = m_ScreenWidth - 20;
+        }
+
+        // Clamp X position
+        if (wx + (INT32)ww > (INT32)m_ScreenWidth) {
+            wx = (INT32)m_ScreenWidth - (INT32)ww - 10;
+        }
+        if (wx < 10) wx = 10;
+
+        // Clamp Y position
+        if (wy + (INT32)wh > (INT32)taskbarY) {
+            wy = (INT32)taskbarY - (INT32)wh - 6;
+        }
+        if (wy < 10) wy = 10;
+
+        win->SetPosition(wx, wy);
+    }
+
+    if (m_StartMenuOpen) {
+        m_StartMenuOpen = false;
+    }
+}
+
 void WindowManager::HandleMouse(const Drivers::MouseState& mouse) {
     bool clickStarted = mouse.LeftButton && !m_PrevLeftButton;
     bool clickReleased = !mouse.LeftButton && m_PrevLeftButton;
