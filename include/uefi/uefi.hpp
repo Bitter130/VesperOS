@@ -394,6 +394,103 @@ typedef struct EFI_BOOT_SERVICES {
     );
 } EFI_BOOT_SERVICES;
 
+// Runtime Services & Reset Types
+typedef enum {
+    EfiResetCold,
+    EfiResetWarm,
+    EfiResetShutdown,
+    EfiResetPlatformSpecific
+} EFI_RESET_TYPE;
+
+typedef EFI_STATUS (EFIAPI *EFI_RESET_SYSTEM)(
+    EFI_RESET_TYPE ResetType,
+    EFI_STATUS     ResetStatus,
+    UINTN          DataSize,
+    VOID           *ResetData
+);
+
+typedef EFI_STATUS (EFIAPI *EFI_GET_TIME)(
+    void *Time,
+    void *Capabilities
+);
+
+typedef EFI_STATUS (EFIAPI *EFI_SET_TIME)(
+    void *Time
+);
+
+typedef EFI_STATUS (EFIAPI *EFI_GET_WAKEUP_TIME)(
+    BOOLEAN *Enabled,
+    BOOLEAN *Pending,
+    void    *Time
+);
+
+typedef EFI_STATUS (EFIAPI *EFI_SET_WAKEUP_TIME)(
+    BOOLEAN Enable,
+    void    *Time
+);
+
+typedef EFI_STATUS (EFIAPI *EFI_SET_VIRTUAL_ADDRESS_MAP)(
+    UINTN                 MemoryMapSize,
+    UINTN                 DescriptorSize,
+    UINT32                DescriptorVersion,
+    EFI_MEMORY_DESCRIPTOR *VirtualMap
+);
+
+typedef EFI_STATUS (EFIAPI *EFI_CONVERT_POINTER)(
+    UINTN DebugDisposition,
+    VOID  **Address
+);
+
+typedef EFI_STATUS (EFIAPI *EFI_GET_VARIABLE)(
+    CHAR16   *VariableName,
+    EFI_GUID *VendorGuid,
+    UINT32   *Attributes,
+    UINTN    *DataSize,
+    VOID     *Data
+);
+
+typedef EFI_STATUS (EFIAPI *EFI_GET_NEXT_VARIABLE_NAME)(
+    UINTN    *VariableNameSize,
+    CHAR16   *VariableName,
+    EFI_GUID *VendorGuid
+);
+
+typedef EFI_STATUS (EFIAPI *EFI_SET_VARIABLE)(
+    CHAR16   *VariableName,
+    EFI_GUID *VendorGuid,
+    UINT32   Attributes,
+    UINTN    DataSize,
+    VOID     *Data
+);
+
+typedef EFI_STATUS (EFIAPI *EFI_GET_NEXT_HIGH_MONO_COUNT)(
+    UINT32 *HighCount
+);
+
+typedef struct EFI_RUNTIME_SERVICES {
+    EFI_TABLE_HEADER             Hdr;
+    // Time Services
+    EFI_GET_TIME                 GetTime;
+    EFI_SET_TIME                 SetTime;
+    EFI_GET_WAKEUP_TIME          GetWakeupTime;
+    EFI_SET_WAKEUP_TIME          SetWakeupTime;
+    // Virtual Memory Services
+    EFI_SET_VIRTUAL_ADDRESS_MAP  SetVirtualAddressMap;
+    EFI_CONVERT_POINTER          ConvertPointer;
+    // Variable Services
+    EFI_GET_VARIABLE             GetVariable;
+    EFI_GET_NEXT_VARIABLE_NAME   GetNextVariableName;
+    EFI_SET_VARIABLE             SetVariable;
+    // Miscellaneous Services
+    EFI_GET_NEXT_HIGH_MONO_COUNT GetNextHighMonotonicCount;
+    EFI_RESET_SYSTEM             ResetSystem;
+    // UEFI 2.0 Capsule Services
+    void*                        UpdateCapsule;
+    void*                        QueryCapsuleCapabilities;
+    // Misc UEFI 2.0 Service
+    void*                        QueryVariableInfo;
+} EFI_RUNTIME_SERVICES;
+
 // System Table
 typedef struct {
     EFI_TABLE_HEADER                Hdr;
@@ -405,7 +502,7 @@ typedef struct {
     EFI_SIMPLE_TEXT_OUTPUT_PROTOCOL *ConOut;
     EFI_HANDLE                      StandardErrorHandle;
     EFI_SIMPLE_TEXT_OUTPUT_PROTOCOL *StdErr;
-    void*                           RuntimeServices;
+    EFI_RUNTIME_SERVICES*           RuntimeServices;
     EFI_BOOT_SERVICES               *BootServices;
     UINTN                           NumberOfTableEntries;
     void*                           ConfigurationTable;

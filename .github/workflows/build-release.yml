@@ -52,6 +52,7 @@ jobs:
             src/drivers/keyboard.cpp \
             src/drivers/mouse.cpp \
             src/system/info.cpp \
+            src/system/power.cpp \
             src/system/runtime.cpp \
             src/ui/window.cpp \
             src/ui/window_manager.cpp \

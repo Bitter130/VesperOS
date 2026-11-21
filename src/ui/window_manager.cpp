@@ -1,4 +1,5 @@
 #include "ui/window_manager.hpp"
+#include "system/power.hpp"
 #include "utils/str.hpp"
 
 namespace Vesper::UI {
@@ -124,6 +125,9 @@ void WindowManager::OnScreenResize(UINT32 newWidth, UINT32 newHeight) {
 }
 
 void WindowManager::HandleMouse(const Drivers::MouseState& mouse) {
+    m_MouseX = mouse.X;
+    m_MouseY = mouse.Y;
+
     bool clickStarted = mouse.LeftButton && !m_PrevLeftButton;
     bool clickReleased = !mouse.LeftButton && m_PrevLeftButton;
     m_PrevLeftButton = mouse.LeftButton;
@@ -151,29 +155,54 @@ void WindowManager::HandleMouse(const Drivers::MouseState& mouse) {
     if (clickStarted) {
         // 1. Check Start Menu if open
         if (m_StartMenuOpen) {
-            INT32 menuW = 200;
-            INT32 menuH = 110;
+            INT32 menuW = 224;
+            INT32 menuH = 214;
             INT32 menuX = 10;
             INT32 menuY = (INT32)taskbarY - menuH - 6;
 
             if (mouse.X >= menuX && mouse.X < menuX + menuW &&
                 mouse.Y >= menuY && mouse.Y < menuY + menuH) {
-                // Item 1: Terminal (menuY + 8 to menuY + 36)
-                if (mouse.Y >= menuY + 8 && mouse.Y < menuY + 36) {
+
+                // Item 0: Terminal Shell (menuY + 50 to menuY + 74)
+                if (mouse.Y >= menuY + 50 && mouse.Y < menuY + 74) {
                     if (m_WindowCount > 0 && m_Windows[0]) {
                         FocusWindow(m_Windows[0]);
                     }
+                    m_StartMenuOpen = false;
+                    return;
                 }
-                // Item 2: System Monitor (menuY + 40 to menuY + 68)
-                else if (mouse.Y >= menuY + 40 && mouse.Y < menuY + 68) {
+                // Item 1: System Monitor (menuY + 77 to menuY + 101)
+                else if (mouse.Y >= menuY + 77 && mouse.Y < menuY + 101) {
                     if (m_WindowCount > 1 && m_Windows[1]) {
                         FocusWindow(m_Windows[1]);
                     }
+                    m_StartMenuOpen = false;
+                    return;
                 }
-                m_StartMenuOpen = false;
+                // Item 2: Restart PC (menuY + 128 to menuY + 152)
+                else if (mouse.Y >= menuY + 128 && mouse.Y < menuY + 152) {
+                    m_StartMenuOpen = false;
+                    System::Power::Instance().Reboot();
+                    return;
+                }
+                // Item 3: Reboot to Firmware / BIOS (menuY + 155 to menuY + 179)
+                else if (mouse.Y >= menuY + 155 && mouse.Y < menuY + 179) {
+                    m_StartMenuOpen = false;
+                    System::Power::Instance().RebootToFirmware();
+                    return;
+                }
+                // Item 4: Shut Down PC (menuY + 182 to menuY + 206)
+                else if (mouse.Y >= menuY + 182 && mouse.Y < menuY + 206) {
+                    m_StartMenuOpen = false;
+                    System::Power::Instance().Shutdown();
+                    return;
+                }
                 return;
             } else {
-                m_StartMenuOpen = false;
+                // If clicking outside start menu, close it unless clicking the Start button itself
+                if (!(mouse.Y >= (INT32)taskbarY && mouse.X >= 10 && mouse.X <= 110)) {
+                    m_StartMenuOpen = false;
+                }
             }
         }
 
@@ -329,22 +358,81 @@ void WindowManager::Render(Graphics::Framebuffer& fb, uint64_t uptimeSeconds) {
 
     // 4. Start Menu Popup (if open)
     if (m_StartMenuOpen) {
-        INT32 menuW = 200;
-        INT32 menuH = 110;
+        INT32 menuW = 224;
+        INT32 menuH = 214;
         INT32 menuX = 10;
         INT32 menuY = (INT32)taskbarY - menuH - 6;
 
-        fb.FillRect(menuX, menuY, menuW, menuH, Color::RGB(22, 26, 36));
+        // Menu background and outer border
+        fb.FillRect(menuX, menuY, menuW, menuH, Color::RGB(18, 20, 28));
         fb.DrawRect(menuX, menuY, menuW, menuH, Color::BorderActive());
 
-        // Header
-        fb.FillRect(menuX, menuY, menuW, 26, Color::RGB(28, 32, 46));
-        fb.DrawString(menuX + 12, menuY + 5, "Applications", Color::Accent(), Color::RGB(28, 32, 46), false);
-        fb.DrawHLine(menuX, menuY + 26, menuW, Color::Border());
+        // Header: Brand / OS Tag
+        fb.FillRect(menuX + 1, menuY + 1, menuW - 2, 29, Color::RGB(26, 30, 42));
+        fb.DrawString(menuX + 12, menuY + 8, ":: VESPER OS", Color::Accent(), Color::RGB(26, 30, 42), false);
+        fb.DrawString(menuX + menuW - 54, menuY + 8, "v0.2.3", Color::TextMuted(), Color::RGB(26, 30, 42), false);
+        fb.DrawHLine(menuX, menuY + 30, menuW, Color::Border());
 
-        // Menu items
-        fb.DrawString(menuX + 16, menuY + 38, "> Terminal Shell", Color::TextWhite(), Color::RGB(22, 26, 36), false);
-        fb.DrawString(menuX + 16, menuY + 68, "> System Monitor", Color::TextWhite(), Color::RGB(22, 26, 36), false);
+        // Section 1: APPLICATIONS
+        fb.DrawString(menuX + 12, menuY + 37, "APPLICATIONS", Color::TextMuted(), Color::RGB(18, 20, 28), false);
+
+        auto DrawMenuItem = [&](INT32 itemY, const char* label, bool isDanger) {
+            INT32 ix = menuX + 6;
+            INT32 iy = itemY;
+            INT32 iw = menuW - 12;
+            INT32 ih = 24;
+
+            bool hovered = (m_MouseX >= ix && m_MouseX < ix + iw &&
+                            m_MouseY >= iy && m_MouseY < iy + ih);
+
+            Color bg, border, fg;
+            if (isDanger) {
+                if (hovered) {
+                    bg = Color::RGB(72, 22, 28);
+                    border = Color::RGB(230, 60, 70);
+                    fg = Color::RGB(255, 140, 150);
+                } else {
+                    bg = Color::RGB(32, 18, 22);
+                    border = Color::RGB(60, 28, 34);
+                    fg = Color::RGB(235, 110, 120);
+                }
+            } else {
+                if (hovered) {
+                    bg = Color::RGB(34, 42, 60);
+                    border = Color::Accent();
+                    fg = Color::TextWhite();
+                } else {
+                    bg = Color::RGB(22, 25, 36);
+                    border = Color::Border();
+                    fg = Color::RGB(210, 220, 235);
+                }
+            }
+
+            fb.FillRect(ix, iy, iw, ih, bg);
+            fb.DrawRect(ix, iy, iw, ih, border);
+            fb.DrawString(ix + 10, iy + 4, label, fg, bg, false);
+        };
+
+        // Item 0: Terminal
+        DrawMenuItem(menuY + 50, "[#] Terminal Shell", false);
+
+        // Item 1: System Monitor
+        DrawMenuItem(menuY + 77, "[i] System Monitor", false);
+
+        // Divider Line
+        fb.DrawHLine(menuX + 10, menuY + 108, menuW - 20, Color::Border());
+
+        // Section 2: SYSTEM POWER
+        fb.DrawString(menuX + 12, menuY + 116, "SYSTEM POWER", Color::TextMuted(), Color::RGB(18, 20, 28), false);
+
+        // Item 2: Restart PC
+        DrawMenuItem(menuY + 128, "[R] Restart PC", false);
+
+        // Item 3: Reboot to BIOS
+        DrawMenuItem(menuY + 155, "[B] Reboot to BIOS / FW", false);
+
+        // Item 4: Shut Down PC
+        DrawMenuItem(menuY + 182, "[X] Shut Down PC", true);
     }
 }
 

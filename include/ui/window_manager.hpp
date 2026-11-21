@@ -42,6 +42,8 @@ private:
 
     bool    m_PrevLeftButton = false;
     bool    m_StartMenuOpen  = false;
+    INT32   m_MouseX         = 0;
+    INT32   m_MouseY         = 0;
 
     static constexpr UINT32 TASKBAR_HEIGHT = 34;
 };

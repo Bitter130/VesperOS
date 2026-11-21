@@ -4,6 +4,7 @@
 #include "drivers/keyboard.hpp"
 #include "drivers/mouse.hpp"
 #include "system/info.hpp"
+#include "system/power.hpp"
 #include "ui/window_manager.hpp"
 #include "ui/terminal.hpp"
 #include "ui/sysinfo_window.hpp"
@@ -32,6 +33,7 @@ extern "C" EFI_STATUS EFIAPI efi_main(EFI_HANDLE imageHandle, EFI_SYSTEM_TABLE* 
 
     // 2. Query System & Hardware Memory Information
     System::SystemInfo::Instance().Query(systemTable);
+    System::Power::Instance().Init(systemTable);
 
     // 3. Initialize Keyboard and Mouse Drivers
     Drivers::Keyboard::Instance().Init(systemTable);

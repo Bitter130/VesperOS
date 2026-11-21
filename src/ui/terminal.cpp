@@ -1,5 +1,6 @@
 #include "ui/terminal.hpp"
 #include "drivers/display.hpp"
+#include "system/power.hpp"
 #include "utils/str.hpp"
 
 namespace Vesper::UI {
@@ -71,7 +72,7 @@ void TerminalWindow::ExecuteCommand(const char* cmd) {
     AppendLine(echoBuf);
 
     if (StrEquals(cmd, "help")) {
-        AppendLine("Commands: help, info, mem, res, clear, echo <text>, reboot");
+        AppendLine("Commands: help, info, mem, res, clear, echo <text>, reboot, shutdown, firmware");
     } else if (StrEquals(cmd, "res")) {
         auto& disp = Drivers::Display::Instance();
         const auto& info = disp.GetInfo();
@@ -178,21 +179,13 @@ void TerminalWindow::ExecuteCommand(const char* cmd) {
         AppendLine(cmd + 5);
     } else if (StrEquals(cmd, "reboot")) {
         AppendLine("Rebooting system...");
-        if (m_SystemTable && m_SystemTable->RuntimeServices) {
-            // Cold reboot via UEFI RuntimeServices
-            typedef void (EFIAPI *EFI_RESET_SYSTEM)(UINT32, UINTN, UINTN, VOID*);
-            struct MiniRT {
-                EFI_TABLE_HEADER Hdr;
-                void* GetTime; void* SetTime; void* GetWakeupTime; void* SetWakeupTime;
-                void* SetVirtualAddressMap; void* ConvertPointer; void* GetVariable;
-                void* GetNextVariableName; void* SetVariable; void* GetNextHighMonotonicCount;
-                EFI_RESET_SYSTEM ResetSystem;
-            };
-            MiniRT* rt = (MiniRT*)m_SystemTable->RuntimeServices;
-            if (rt && rt->ResetSystem) {
-                rt->ResetSystem(0, 0, 0, nullptr);
-            }
-        }
+        System::Power::Instance().Reboot();
+    } else if (StrEquals(cmd, "shutdown") || StrEquals(cmd, "poweroff")) {
+        AppendLine("Shutting down PC...");
+        System::Power::Instance().Shutdown();
+    } else if (StrEquals(cmd, "firmware") || StrEquals(cmd, "bios")) {
+        AppendLine("Rebooting to UEFI Firmware Setup...");
+        System::Power::Instance().RebootToFirmware();
     } else if (cmd[0] != '\0') {
         char err[MAX_LINE_LEN] = "Unknown command: ";
         int p = 17;

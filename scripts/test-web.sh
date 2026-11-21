@@ -34,7 +34,7 @@ clang++ \
     -Wl,-subsystem:efi_application -Wl,-entry:efi_main -Wl,-nodefaultlib \
     src/main.cpp src/graphics/font.cpp src/graphics/framebuffer.cpp \
     src/drivers/display.cpp src/drivers/keyboard.cpp src/drivers/mouse.cpp \
-    src/system/info.cpp src/system/runtime.cpp \
+    src/system/info.cpp src/system/power.cpp src/system/runtime.cpp \
     src/ui/window.cpp src/ui/window_manager.cpp \
     src/ui/terminal.cpp src/ui/sysinfo_window.cpp \
     -o bin/BOOTX64.EFI
